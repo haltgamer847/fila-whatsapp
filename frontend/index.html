@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Painel Fila Médica</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="container py-4">
+    <h1 class="mb-4">Painel de Atendimento</h1>
+
+    <div id="login-registro" class="mb-4">
+        <h4>Login</h4>
+        <input id="email" type="email" placeholder="E-mail" class="form-control mb-2">
+        <input id="senha" type="password" placeholder="Senha" class="form-control mb-2">
+        <button onclick="logar()" class="btn btn-primary w-100 mb-3">Entrar</button>
+
+        <h4>Registrar novo usuário</h4>
+        <input id="nomeNovo" type="text" placeholder="Nome completo" class="form-control mb-2">
+        <input id="emailNovo" type="email" placeholder="E-mail novo" class="form-control mb-2">
+        <input id="senhaNovo" type="password" placeholder="Senha nova" class="form-control mb-2">
+        <button onclick="registrar()" class="btn btn-secondary w-100">Registrar</button>
+    </div>
+
+    <div id="painel" style="display:none;">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <select id="especialidade" class="form-select w-50" onchange="carregarDados()">
+                <option value="clínico geral">Clínico Geral</option>
+                <option value="psiquiatra">Psiquiatra</option>
+            </select>
+            <button onclick="baixarRelatorio()" class="btn btn-outline-secondary">Baixar Relatório</button>
+        </div>
+
+        <h3>Fila Autorizada</h3>
+        <ul id="fila" class="list-group mb-4"></ul>
+
+        <h3>Solicitações Pendentes</h3>
+        <ul id="pendentes" class="list-group"></ul>
+    </div>
+
+    <script>
+        let token = "";
+
+        async function logar() {
+            const email = document.getElementById('email').value;
+            const senha = document.getElementById('senha').value;
+            const res = await fetch('http://localhost:3001/api/login', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ email, senha })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                token = data.token;
+                document.getElementById('login-registro').style.display = 'none';
+                document.getElementById('painel').style.display = 'block';
+                carregarDados();
+            } else {
+                alert("Login falhou");
+            }
+        }
+
+        async function registrar() {
+            const nome = document.getElementById('nomeNovo').value;
+            const email = document.getElementById('emailNovo').value;
+            const senha = document.getElementById('senhaNovo').value;
+            const res = await fetch('http://localhost:3001/api/register', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ nome, email, senha })
+            });
+
+            if (res.ok) {
+                alert("Usuário registrado com sucesso. Agora você pode fazer login.");
+            } else {
+                alert("Erro ao registrar. Verifique se o e-mail já existe.");
+            }
+        }
+
+        async function carregarDados() {
+            const esp = document.getElementById('especialidade').value;
+            const filaRes = await fetch(`http://localhost:3001/api/fila/${esp}`, {
+                headers: { 'Authorization': token }
+            });
+            const fila = await filaRes.json();
+            document.getElementById('fila').innerHTML = fila.map(p => `
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    ${p.nome}
+                    <button class="btn btn-sm btn-outline-primary" onclick="atender(${p.id})">Atendido</button>
+                </li>
+            `).join('');
+
+            const pendRes = await fetch(`http://localhost:3001/api/pendentes/${esp}`, {
+                headers: { 'Authorization': token }
+            });
+            const pendentes = await pendRes.json();
+            document.getElementById('pendentes').innerHTML = pendentes.map(p =>
+                `<li class="list-group-item d-flex justify-content-between align-items-center">
+                    ${p.nome}
+                    <span>
+                        <button class="btn btn-success btn-sm" onclick="autorizar(${p.id})">Autorizar</button>
+                        <button class="btn btn-danger btn-sm" onclick="negar(${p.id})">Negar</button>
+                    </span>
+                </li>`
+            ).join('');
+        }
+
+        async function autorizar(id) {
+            await fetch('http://localhost:3001/api/autorizar', {
+                method: 'POST',
+                headers: { 'Authorization': token, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id })
+            });
+            carregarDados();
+        }
+
+        async function negar(id) {
+            await fetch('http://localhost:3001/api/negar', {
+                method: 'POST',
+                headers: { 'Authorization': token, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id })
+            });
+            carregarDados();
+        }
+
+        async function atender(id) {
+            await fetch('http://localhost:3001/api/atender', {
+                method: 'POST',
+                headers: { 'Authorization': token, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id })
+            });
+            carregarDados();
+        }
+
+        function baixarRelatorio() {
+            window.open('http://localhost:3001/api/relatorio', '_blank');
+        }
+    </script>
+</body>
+</html>
